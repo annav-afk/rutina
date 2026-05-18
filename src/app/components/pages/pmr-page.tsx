@@ -114,7 +114,7 @@ export function PMRPage() {
   const progress = (stepIdx / steps.length) * 100 + (phase === "relax" || phase === "complete" ? (1 / steps.length) * 100 : 0);
 
   return (
-    <div className="px-5 pt-14 pb-4">
+    <div className="px-5 pt-14 pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => { reset(); navigate(-1); }} className="p-1.5 rounded-xl" style={{ backgroundColor: t.bgSecondary }}>

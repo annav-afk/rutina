@@ -66,7 +66,7 @@ export function CapsulePage() {
   }, [showForm]);
 
   return (
-    <div className="px-5 pt-14 pb-4">
+    <div className="px-5 pt-14 pb-8">
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => navigate(-1)} className="p-1.5 rounded-xl" style={{ backgroundColor: t.bgSecondary }}>
           <ArrowLeft className="w-5 h-5" style={{ color: t.text }} />

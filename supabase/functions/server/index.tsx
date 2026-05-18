@@ -1,10 +1,103 @@
-import { Hono } from "npm:hono";
-import { cors } from "npm:hono/cors";
-import { logger } from "npm:hono/logger";
+import { Hono } from "npm:hono@4";
+import { cors } from "npm:hono@4/cors";
+import { logger } from "npm:hono@4/logger";
 import * as kv from "./kv_store.tsx";
-import { createClient } from "npm:@supabase/supabase-js";
+import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import * as yookassa from "./yookassa.tsx";
 
 const app = new Hono();
+
+// ─── Rate Limiter (in-memory, per IP) ───
+// Tracks request timestamps per key (e.g. "chat:1.2.3.4")
+const rateLimitStore = new Map<string, number[]>();
+
+/**
+ * Check rate limit for a given key.
+ * @param key      Unique identifier (e.g. "chat:1.2.3.4")
+ * @param limit    Max requests allowed in the window
+ * @param windowMs Window duration in milliseconds
+ * @returns true if the request is allowed, false if rate-limited
+ */
+function checkRateLimit(key: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  // Prune stale entries inline (no setInterval needed — each isolate is short-lived)
+  const timestamps = (rateLimitStore.get(key) || []).filter(
+    (t) => now - t < windowMs
+  );
+  if (timestamps.length >= limit) {
+    rateLimitStore.set(key, timestamps);
+    return false;
+  }
+  timestamps.push(now);
+  rateLimitStore.set(key, timestamps);
+  return true;
+}
+
+// ─── Admin Key Validator ───
+/**
+ * Returns true only if X-Admin-Key header matches ADMIN_SECRET_KEY env var.
+ * Fails closed: if env var is not set, all admin requests are rejected.
+ */
+function validateAdminKey(adminKey: string | undefined): boolean {
+  const expected = Deno.env.get("ADMIN_SECRET_KEY");
+  if (!expected || expected.trim() === "") {
+    console.log("ADMIN_SECRET_KEY env var not configured — admin access denied");
+    return false;
+  }
+  return adminKey === expected;
+}
+
+// ─── JWT Payload Decoder (no signature check, for role inspection only) ───
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const raw = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * If the request carries a real user JWT (role === "authenticated"),
+ * verify that user.id matches deviceId.
+ * If the token is the anon key or unverifiable, allow through (backward compat).
+ * Returns null if OK, or an error Response to return immediately.
+ */
+async function verifyStateAccess(
+  token: string | undefined,
+  deviceId: string
+): Promise<Response | null> {
+  if (!token) return null; // No token → allow
+
+  const payload = decodeJwtPayload(token);
+  if (!payload || payload["role"] !== "authenticated") {
+    return null; // Anon key or undecodable → allow
+  }
+
+  // Real user JWT — verify with Supabase and check sub matches deviceId
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) {
+    return new Response(JSON.stringify({ error: "Invalid token" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (user.id !== deviceId) {
+    console.log(`State access denied: token user ${user.id} !== deviceId ${deviceId}`);
+    return new Response(JSON.stringify({ error: "Forbidden: token does not match device" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  return null;
+}
 
 // Enable logger
 app.use('*', logger(console.log));
@@ -50,6 +143,12 @@ app.get("/make-server-ff738703/state/:deviceId", async (c) => {
     if (!deviceId || deviceId.length < 8) {
       return c.json({ error: "Invalid device ID" }, 400);
     }
+
+    // JWT verification: if a real user token is present, ensure it matches deviceId
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    const accessError = await verifyStateAccess(token, deviceId);
+    if (accessError) return accessError;
+
     const keys = STATE_KEYS.map((k) => makeKey(deviceId, k));
     const values = await kv.mget(keys);
     const result: Record<string, any> = {};
@@ -84,6 +183,12 @@ app.put("/make-server-ff738703/state/:deviceId", async (c) => {
     if (!deviceId || deviceId.length < 8) {
       return c.json({ error: "Invalid device ID" }, 400);
     }
+
+    // JWT verification: if a real user token is present, ensure it matches deviceId
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    const accessError = await verifyStateAccess(token, deviceId);
+    if (accessError) return accessError;
+
     const body = await c.req.json();
     if (!body || typeof body !== "object") {
       return c.json({ error: "Invalid body" }, 400);
@@ -192,7 +297,7 @@ app.post("/make-server-ff738703/change-password", async (c) => {
       return c.json({ error: "Текущий и новый пароль обязательны" }, 400);
     }
     if (newPassword.length < 6) {
-      return c.json({ error: "Новый пароль должен быть не ��енее 6 символов" }, 400);
+      return c.json({ error: "Новый пароль должен быть не енее 6 символов" }, 400);
     }
 
     // Verify current password by attempting sign in
@@ -266,7 +371,7 @@ app.post("/make-server-ff738703/change-name", async (c) => {
 app.get("/make-server-ff738703/admin/users", async (c) => {
   try {
     const adminKey = c.req.header("X-Admin-Key");
-    if (adminKey !== "admin") {
+    if (!validateAdminKey(adminKey)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
@@ -352,7 +457,7 @@ app.get("/make-server-ff738703/admin/users", async (c) => {
 app.post("/make-server-ff738703/admin/ban-user", async (c) => {
   try {
     const adminKey = c.req.header("X-Admin-Key");
-    if (adminKey !== "admin") {
+    if (!validateAdminKey(adminKey)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -396,7 +501,7 @@ app.post("/make-server-ff738703/admin/ban-user", async (c) => {
 app.post("/make-server-ff738703/admin/change-user-password", async (c) => {
   try {
     const adminKey = c.req.header("X-Admin-Key");
-    if (adminKey !== "admin") {
+    if (!validateAdminKey(adminKey)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -426,7 +531,7 @@ app.post("/make-server-ff738703/admin/change-user-password", async (c) => {
 app.post("/make-server-ff738703/admin/change-user-email", async (c) => {
   try {
     const adminKey = c.req.header("X-Admin-Key");
-    if (adminKey !== "admin") {
+    if (!validateAdminKey(adminKey)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -455,7 +560,7 @@ app.post("/make-server-ff738703/admin/change-user-email", async (c) => {
 app.post("/make-server-ff738703/admin/change-user-name", async (c) => {
   try {
     const adminKey = c.req.header("X-Admin-Key");
-    if (adminKey !== "admin") {
+    if (!validateAdminKey(adminKey)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -493,7 +598,7 @@ app.post("/make-server-ff738703/admin/change-user-name", async (c) => {
 app.post("/make-server-ff738703/admin/delete-user", async (c) => {
   try {
     const adminKey = c.req.header("X-Admin-Key");
-    if (adminKey !== "admin") {
+    if (!validateAdminKey(adminKey)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -550,6 +655,16 @@ const LEAF_SYSTEM_PROMPT = `Ты — Листик, мягкий и заботл�
 
 app.post("/make-server-ff738703/chat", async (c) => {
   try {
+    // Rate limiting: 20 requests per minute per IP
+    const clientIp =
+      c.req.header("cf-connecting-ip") ||
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "unknown";
+    if (!checkRateLimit(`chat:${clientIp}`, 20, 60_000)) {
+      console.log(`Chat rate limited for IP: ${clientIp}`);
+      return c.json({ error: "Слишком много запросов. Подождите минуту 🌿" }, 429);
+    }
+
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
       console.log("OPENAI_API_KEY not set");
@@ -616,6 +731,16 @@ app.post("/make-server-ff738703/chat", async (c) => {
 
 app.post("/make-server-ff738703/tts", async (c) => {
   try {
+    // Rate limiting: 8 TTS requests per minute per IP (TTS is expensive)
+    const clientIp =
+      c.req.header("cf-connecting-ip") ||
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "unknown";
+    if (!checkRateLimit(`tts:${clientIp}`, 8, 60_000)) {
+      console.log(`TTS rate limited for IP: ${clientIp}`);
+      return c.json({ error: "Слишком много запросов TTS. Подождите минуту 🌿" }, 429);
+    }
+
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
       console.log("OPENAI_API_KEY not set for TTS");
@@ -786,6 +911,182 @@ app.get("/make-server-ff738703/avatar/:userId", async (c) => {
   } catch (e) {
     console.log(`Avatar get error: ${e}`);
     return c.json({ url: null });
+  }
+});
+
+// ─── YooKassa Payment Integration ───
+
+// Create payment
+app.post("/make-server-ff738703/payment/create", async (c) => {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // Auth check
+    const accessToken = c.req.header("Authorization")?.split(" ")[1];
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(accessToken);
+    if (authErr || !user) {
+      console.log(`Payment create auth error: ${authErr?.message}`);
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const body = await c.req.json();
+    const { amount, description, returnUrl } = body;
+
+    if (!amount || !description || !returnUrl) {
+      return c.json({ error: "Missing required fields" }, 400);
+    }
+
+    const payment = await yookassa.createPayment({
+      amount: parseFloat(amount),
+      description,
+      userId: user.id,
+      returnUrl,
+    });
+
+    if (!payment) {
+      return c.json({ error: "Failed to create payment" }, 500);
+    }
+
+    // Store payment info in KV for verification later
+    await kv.set(`payment_${payment.id}`, {
+      userId: user.id,
+      amount,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+
+    return c.json({
+      paymentId: payment.id,
+      confirmationUrl: payment.confirmation.confirmation_url,
+    });
+  } catch (e) {
+    console.log(`Payment create error: ${e}`);
+    return c.json({ error: `Payment create error: ${e}` }, 500);
+  }
+});
+
+// Check payment status
+app.get("/make-server-ff738703/payment/status/:paymentId", async (c) => {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // Auth check
+    const accessToken = c.req.header("Authorization")?.split(" ")[1];
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(accessToken);
+    if (authErr || !user) {
+      console.log(`Payment status auth error: ${authErr?.message}`);
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const paymentId = c.req.param("paymentId");
+    const payment = await yookassa.getPayment(paymentId);
+
+    if (!payment) {
+      return c.json({ error: "Payment not found" }, 404);
+    }
+
+    // Update payment status in KV
+    const storedPayment = await kv.get(`payment_${paymentId}`);
+    if (storedPayment && payment.status === "succeeded") {
+      // Payment successful — grant access
+      await kv.set(`subscription_${user.id}`, {
+        status: "active",
+        startDate: new Date().toISOString(),
+        // Add 30 days
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+
+      // Update payment status
+      await kv.set(`payment_${paymentId}`, {
+        ...(storedPayment as any),
+        status: "succeeded",
+        completedAt: new Date().toISOString(),
+      });
+    }
+
+    return c.json({
+      status: payment.status,
+      paid: payment.paid,
+    });
+  } catch (e) {
+    console.log(`Payment status error: ${e}`);
+    return c.json({ error: `Payment status error: ${e}` }, 500);
+  }
+});
+
+// Get subscription status
+app.get("/make-server-ff738703/subscription/:userId", async (c) => {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // Auth check
+    const accessToken = c.req.header("Authorization")?.split(" ")[1];
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(accessToken);
+    if (authErr || !user) {
+      console.log(`Subscription status auth error: ${authErr?.message}`);
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const userId = c.req.param("userId");
+    if (user.id !== userId) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const subscription = await kv.get(`subscription_${userId}`);
+    if (!subscription) {
+      return c.json({ status: "inactive" });
+    }
+
+    const sub = subscription as any;
+    // Check if subscription is still active
+    if (sub.status === "active" && new Date(sub.endDate) > new Date()) {
+      return c.json(sub);
+    }
+
+    return c.json({ status: "inactive" });
+  } catch (e) {
+    console.log(`Subscription status error: ${e}`);
+    return c.json({ error: `Subscription status error: ${e}` }, 500);
+  }
+});
+
+// YooKassa webhook
+app.post("/make-server-ff738703/payment/webhook", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { event, object } = body;
+
+    // Handle payment.succeeded event
+    if (event === "payment.succeeded" && object) {
+      const paymentId = object.id;
+      const userId = object.metadata?.user_id;
+
+      if (userId) {
+        // Grant subscription access
+        await kv.set(`subscription_${userId}`, {
+          status: "active",
+          startDate: new Date().toISOString(),
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          paymentId,
+        });
+
+        console.log(`Subscription activated for user ${userId} via webhook`);
+      }
+    }
+
+    return c.json({ received: true });
+  } catch (e) {
+    console.log(`Webhook error: ${e}`);
+    return c.json({ error: `Webhook error: ${e}` }, 500);
   }
 });
 

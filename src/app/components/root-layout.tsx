@@ -7,6 +7,7 @@ import { supabase } from "./supabase-client";
 import { clearLocalUserData, fullLoadFromServer, pushAllLocalToServer } from "./supabase-sync";
 import { AmbientBlobs, SparkleField, MeshGradientBg } from "./ambient-elements";
 import { motion } from "motion/react";
+import { ErrorBoundary } from "./error-boundary";
 
 interface AuthUser {
   id: string;
@@ -158,47 +159,50 @@ export function RootLayout() {
     supabase.auth.signOut().catch(() => {});
   };
 
-  if (checking || loadingData) {
-    return (
-      <div className="h-dvh flex items-center justify-center relative overflow-hidden">
-        <MeshGradientBg darkMode={false} variant="calm" />
-        <AmbientBlobs variant="calm" />
-        <SparkleField count={8} />
-        <div className="text-center relative z-[1]">
-          <motion.div
-            className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
-            style={{
-              background: "linear-gradient(135deg, rgba(141,181,150,0.15), rgba(155,142,196,0.12))",
-              boxShadow: "0 8px 32px rgba(141,181,150,0.1)",
-            }}
-            animate={{ scale: [1, 1.08, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <span style={{ fontSize: "2.2rem" }}>🌿</span>
-          </motion.div>
-          <motion.p
-            style={{ fontSize: "0.82rem", color: "#9B9489", fontWeight: 500 }}
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
-            {loadingData ? "Загружаем ваши данные..." : "Загрузка..."}
-          </motion.p>
-        </div>
-      </div>
-    );
-  }
+  // Временно убрана проверка авторизации — сразу показываем приложение
+  // if (checking || loadingData) {
+  //   return (
+  //     <div className="h-dvh flex items-center justify-center relative overflow-hidden">
+  //       <MeshGradientBg darkMode={false} variant="calm" />
+  //       <AmbientBlobs variant="calm" />
+  //       <SparkleField count={8} />
+  //       <div className="text-center relative z-[1]">
+  //         <motion.div
+  //           className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
+  //           style={{
+  //             background: "linear-gradient(135deg, rgba(141,181,150,0.15), rgba(155,142,196,0.12))",
+  //             boxShadow: "0 8px 32px rgba(141,181,150,0.1)",
+  //           }}
+  //           animate={{ scale: [1, 1.08, 1] }}
+  //           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+  //         >
+  //           <span style={{ fontSize: "2.2rem" }}>🌿</span>
+  //         </motion.div>
+  //         <motion.p
+  //           style={{ fontSize: "0.82rem", color: "#9B9489", fontWeight: 500 }}
+  //           animate={{ opacity: [0.5, 1, 0.5] }}
+  //           transition={{ duration: 1.5, repeat: Infinity }}
+  //         >
+  //           {loadingData ? "Загружаем ваши данные..." : "Загрузка..."}
+  //         </motion.p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
-  if (!authUser) {
-    return <AuthPage onAuth={handleAuth} />;
-  }
+  // if (!authUser) {
+  //   return <AuthPage onAuth={handleAuth} />;
+  // }
 
-  if (authUser.id === "admin") {
-    return <AdminPage onLogout={handleLogout} />;
-  }
+  // if (authUser.id === "admin") {
+  //   return <AdminPage onLogout={handleLogout} />;
+  // }
 
   return (
     <AppProvider key={appKey}>
-      <Outlet />
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
     </AppProvider>
   );
 }

@@ -16,8 +16,7 @@ const sleepFactors = [
   { id: "caffeine", label: "Кофеин", icon: "☕" },
   { id: "exercise", label: "Тренировка", icon: "💪" },
   { id: "late_meal", label: "Поздний ужин", icon: "🍕" },
-  { id: "alcohol", label: "Алкаголь", icon: "🍷" },
-  { id: "meditation", label: "Медитация", icon: "🧘" },
+  { id: "alcohol", label: "Алкоголь", icon: "🍷" },
   { id: "reading", label: "Чтение", icon: "📚" },
   { id: "walk", label: "Прогулка", icon: "🚶" },
   { id: "bath", label: "Ванна", icon: "🛁" },
@@ -75,7 +74,7 @@ export function SleepPage() {
   }, [sleepEntries]);
 
   return (
-    <div className="px-5 pt-14 pb-4">
+    <div className="px-5 pt-14 pb-8">
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => navigate(-1)} className="p-1.5 rounded-xl" style={{ backgroundColor: t.bgSecondary }}>
           <ArrowLeft className="w-5 h-5" style={{ color: t.text }} />

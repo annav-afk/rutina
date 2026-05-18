@@ -15,19 +15,19 @@ import { FloatingDock } from "./floating-dock";
 import { AmbientBlobs, SparkleField, MeshGradientBg } from "./ambient-elements";
 
 const tabs = [
-  { path: "/", icon: Home, label: "Главная" },
-  { path: "/tasks", icon: ListChecks, label: "Задачи" },
-  { path: "/habits", icon: Repeat, label: "Привычки" },
-  { path: "/mood", icon: Smile, label: "Настроение" },
-  { path: "/profile", icon: User, label: "Профиль" },
+  { path: "/app", icon: Home, label: "Главная" },
+  { path: "/app/tasks", icon: ListChecks, label: "Задачи" },
+  { path: "/app/habits", icon: Repeat, label: "Привычки" },
+  { path: "/app/mood", icon: Smile, label: "Настроение" },
+  { path: "/app/profile", icon: User, label: "Профиль" },
 ];
 
 const tourMap: Record<string, { key: string; steps: typeof dashboardTour }> = {
-  "/": { key: "tour-dashboard", steps: dashboardTour },
-  "/tasks": { key: "tour-tasks", steps: tasksTour },
-  "/habits": { key: "tour-habits", steps: habitsTour },
-  "/mood": { key: "tour-mood", steps: moodTour },
-  "/profile": { key: "tour-profile", steps: profileTour },
+  "/app": { key: "tour-dashboard", steps: dashboardTour },
+  "/app/tasks": { key: "tour-tasks", steps: tasksTour },
+  "/app/habits": { key: "tour-habits", steps: habitsTour },
+  "/app/mood": { key: "tour-mood", steps: moodTour },
+  "/app/profile": { key: "tour-profile", steps: profileTour },
 };
 
 export function MobileLayout() {

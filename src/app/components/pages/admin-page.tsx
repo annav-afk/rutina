@@ -8,7 +8,9 @@ import {
 import { projectId, publicAnonKey } from "../supabase-client";
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-ff738703`;
-const ADMIN_KEY = "admin";
+// Admin key — read from env var (set VITE_ADMIN_SECRET_KEY in your environment)
+// Falls back to empty string so requests fail rather than use a weak default
+const ADMIN_KEY = import.meta.env.VITE_ADMIN_SECRET_KEY ?? "";
 
 const C = {
   bg: "#FAF8F5",

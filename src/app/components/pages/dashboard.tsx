@@ -42,34 +42,32 @@ const toolCategories: { title: string; emoji: string; items: ToolItem[] }[] = [
     title: "Спокойствие",
     emoji: "🌿",
     items: [
-      { emoji: "🫧", label: "Трекер тревоги", path: "/anxiety", color: "#C4876C" },
-      { emoji: "💭", label: "Worry Journal", path: "/worry", color: "#9B8EC4" },
-      { emoji: "🆘", label: "SOS-карточка", path: "/sos", color: "#C4876C" },
-      { emoji: "🎧", label: "Звуки природы", path: "/soundscapes", color: "#7BAFB0" },
-      { emoji: "🧘‍♀️", label: "Мышечная релаксация", path: "/pmr", color: "#C4876C" },
-      { emoji: "🧘", label: "Медитации", path: "/meditation", color: "#9B8EC4" },
+      { emoji: "🫧", label: "Трекер тревоги", path: "/app/anxiety", color: "#C4876C" },
+      { emoji: "💭", label: "Worry Journal", path: "/app/worry", color: "#9B8EC4" },
+      { emoji: "🆘", label: "SOS-карточка", path: "/app/sos", color: "#C4876C" },
+      { emoji: "🧘‍♀️", label: "Мышечная релаксация", path: "/app/pmr", color: "#C4876C" },
     ],
   },
   {
     title: "Рост",
     emoji: "🌱",
     items: [
-      { emoji: "📝", label: "Дневник", path: "/journal", color: "#9B8EC4" },
-      { emoji: "🌳", label: "Дерево навыков", path: "/skills", color: "#C4A86C" },
-      { emoji: "🌸", label: "30-дн. челлендж", path: "/challenge", color: "#9B8EC4" },
-      { emoji: "🎯", label: "Self-Care Бинго", path: "/bingo", color: "#8DB596" },
-      { emoji: "🧠", label: "Когнитивные ловушки", path: "/distortions", color: "#7EA8BE" },
+      { emoji: "📝", label: "Дневник", path: "/app/journal", color: "#9B8EC4" },
+      { emoji: "🌳", label: "Дерево навыков", path: "/app/skills", color: "#C4A86C" },
+      { emoji: "🌸", label: "30-дн. челлендж", path: "/app/challenge", color: "#9B8EC4" },
+      { emoji: "🎯", label: "Self-Care Бинго", path: "/app/bingo", color: "#8DB596" },
+      { emoji: "🧠", label: "Когнитивные ловушки", path: "/app/distortions", color: "#7EA8BE" },
     ],
   },
   {
     title: "Рефлексия",
     emoji: "✨",
     items: [
-      { emoji: "📊", label: "Аналитика", path: "/stats", color: "#7EA8BE" },
-      { emoji: "🎡", label: "Колесо жизни", path: "/lifewheel", color: "#C4A86C" },
-      { emoji: "📦", label: "Капсула времени", path: "/capsule", color: "#B88FA7" },
-      { emoji: "🌙", label: "Сон", path: "/sleep", color: "#9B8EC4" },
-      { emoji: "🔔", label: "Напоминания", path: "/notifications", color: "#C4876C" },
+      { emoji: "📊", label: "Аналитика", path: "/app/stats", color: "#7EA8BE" },
+      { emoji: "🎡", label: "Колесо жизни", path: "/app/lifewheel", color: "#C4A86C" },
+      { emoji: "📦", label: "Капсула времени", path: "/app/capsule", color: "#B88FA7" },
+      { emoji: "🌙", label: "Сон", path: "/app/sleep", color: "#9B8EC4" },
+      { emoji: "🔔", label: "Напоминания", path: "/app/notifications", color: "#C4876C" },
     ],
   },
 ];
@@ -96,7 +94,7 @@ function ToolsDrawer({ open, onClose, favoriteTools, onToggleFavorite }: { open:
             onClick={onClose}
           />
           <motion.div
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl"
+            className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl"
             style={{ backgroundColor: t.bg, boxShadow: "0 -4px 20px rgba(0,0,0,0.1)" }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
@@ -225,7 +223,7 @@ export function Dashboard() {
   const currentStreak = profile.streak || 0;
 
   return (
-    <div className="relative px-5 pt-0 pb-4">
+    <div className="relative px-5 pt-0 pb-8">
       {/* ─── Aurora gradient header ─── */}
       <AuroraHeader
         darkMode={darkMode}
@@ -254,7 +252,7 @@ export function Dashboard() {
           </h1>
         </div>
         <motion.button
-          onClick={() => navigate("/profile")}
+          onClick={() => navigate("/app/profile")}
           className="w-11 h-11 rounded-full flex items-center justify-center relative overflow-hidden"
           style={{
             background: "linear-gradient(135deg, #8DB596, #7BAFB0)",
@@ -306,7 +304,7 @@ export function Dashboard() {
           label="Задач"
           color="#8DB596"
           darkMode={darkMode}
-          onClick={() => navigate("/tasks")}
+          onClick={() => navigate("/app/tasks")}
         />
         <GlassBubble
           emoji={todayMood ? "😊" : "🫧"}
@@ -314,7 +312,7 @@ export function Dashboard() {
           label="Настроение"
           color="#9B8EC4"
           darkMode={darkMode}
-          onClick={() => navigate("/mood")}
+          onClick={() => navigate("/app/mood")}
         />
         <GlassBubble
           emoji="🌿"
@@ -322,7 +320,7 @@ export function Dashboard() {
           label="Привычки"
           color="#7EA8BE"
           darkMode={darkMode}
-          onClick={() => navigate("/habits")}
+          onClick={() => navigate("/app/habits")}
         />
         <GlassBubble
           emoji="🔥"
@@ -330,7 +328,7 @@ export function Dashboard() {
           label="Стрик"
           color="#C4876C"
           darkMode={darkMode}
-          onClick={() => navigate("/profile")}
+          onClick={() => navigate("/app/profile")}
         />
       </motion.div>
 
@@ -363,7 +361,7 @@ export function Dashboard() {
         <motion.button
           className="w-full rounded-2xl p-3.5 mb-4 flex items-center gap-3 border"
           style={{ backgroundColor: t.bgSecondary, borderColor: t.border }}
-          onClick={() => navigate("/profile")}
+          onClick={() => navigate("/app/profile")}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.12 }}
@@ -392,13 +390,13 @@ export function Dashboard() {
           <motion.button
             className="w-full rounded-2xl p-4 flex items-center gap-3 border"
             style={{ backgroundColor: t.bgSecondary, borderColor: t.border }}
-            onClick={() => navigate("/mood")}
+            onClick={() => navigate("/app/mood")}
             whileTap={{ scale: 0.98 }}
           >
             <span style={{ fontSize: "1.3rem" }}>😊</span>
             <div className="flex-1 text-left">
               <span style={{ fontSize: "0.82rem", fontWeight: 600, color: t.text }}>Как вы себя чувствуете?</span>
-              <p style={{ fontSize: "0.7rem", color: t.textMuted }}>Отметьте настроение — это занимает 10 секунд</p>
+              <p style={{ fontSize: "0.7rem", color: t.textMuted }}>Отмет��те настроение — это занимает 10 секунд</p>
             </div>
             <ChevronRight className="w-4 h-4" style={{ color: t.textFaint }} />
           </motion.button>
@@ -410,7 +408,7 @@ export function Dashboard() {
           <motion.button
             className="w-full rounded-2xl p-4 flex items-center gap-3 border"
             style={{ backgroundColor: t.bgSecondary, borderColor: t.border }}
-            onClick={() => navigate("/mood")}
+            onClick={() => navigate("/app/mood")}
             whileTap={{ scale: 0.98 }}
           >
             <span style={{ fontSize: "1.3rem" }}>😊</span>
@@ -498,7 +496,7 @@ export function Dashboard() {
         <motion.div className="mb-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <div className="flex items-center justify-between mb-2.5">
             <span style={{ fontSize: "0.85rem", fontWeight: 600, color: t.text }}>Привычки</span>
-            <button onClick={() => navigate("/habits")} style={{ fontSize: "0.75rem", fontWeight: 500, color: t.sage }}>Все →</button>
+            <button onClick={() => navigate("/app/habits")} style={{ fontSize: "0.75rem", fontWeight: 500, color: t.sage }}>Все →</button>
           </div>
           <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
             {habits.slice(0, 6).map((habit) => {
@@ -538,7 +536,7 @@ export function Dashboard() {
               </span>
             )}
           </span>
-          <button onClick={() => navigate("/tasks")} style={{ fontSize: "0.75rem", fontWeight: 500, color: t.sage }}>Все →</button>
+          <button onClick={() => navigate("/app/tasks")} style={{ fontSize: "0.75rem", fontWeight: 500, color: t.sage }}>Все →</button>
         </div>
 
         {/* Thin progress bar */}

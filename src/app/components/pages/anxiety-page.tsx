@@ -123,7 +123,7 @@ export function AnxietyPage() {
   };
 
   return (
-    <div className="px-5 pt-14 pb-6">
+    <div className="px-5 pt-14 pb-8">
       {/* Header */}
       <motion.div
         className="flex items-center gap-3 mb-6"
@@ -306,7 +306,7 @@ export function AnxietyPage() {
             WebkitBackdropFilter: "blur(12px)",
             border: `1px solid ${darkMode ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.6)"}`,
           }}
-          onClick={() => navigate("/anxiety/grounding")}
+          onClick={() => navigate("/app/anxiety/grounding")}
         >
           <Hand className="w-5 h-5" style={{ color: t.teal }} />
           <div className="text-left">
@@ -515,7 +515,7 @@ export function AnxietyPage() {
                         onClick={() => {
                           setUsedGrounding(true);
                           setShowForm(false);
-                          navigate("/anxiety/grounding");
+                          navigate("/app/anxiety/grounding");
                         }}
                       >
                         <Hand className="w-3.5 h-3.5 inline mr-1" />

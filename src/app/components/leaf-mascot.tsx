@@ -30,65 +30,17 @@ interface Particle {
   duration: number;
 }
 
-// ─── Sound Engine (Web Audio API) ───
+// ─── Sound Engine (disabled) ───
 
 class MascotSounds {
-  private ctx: AudioContext | null = null;
-  enabled = true;
-
-  private getCtx() {
-    if (!this.ctx) this.ctx = new AudioContext();
-    return this.ctx;
-  }
-
-  private playTone(freq: number, duration: number, type: OscillatorType = "sine", vol = 0.08) {
-    if (!this.enabled) return;
-    try {
-      const ctx = this.getCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      gain.gain.setValueAtTime(vol, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + duration);
-      // Harmonic overtone for richer sound
-      if (vol > 0.03) {
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = "sine";
-        osc2.frequency.setValueAtTime(freq * 2, ctx.currentTime);
-        gain2.gain.setValueAtTime(vol * 0.25, ctx.currentTime);
-        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration * 0.7);
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        osc2.start(ctx.currentTime);
-        osc2.stop(ctx.currentTime + duration * 0.7);
-        // Fifth harmonic (very subtle shimmer)
-        const osc3 = ctx.createOscillator();
-        const gain3 = ctx.createGain();
-        osc3.type = "sine";
-        osc3.frequency.setValueAtTime(freq * 1.5, ctx.currentTime);
-        gain3.gain.setValueAtTime(vol * 0.12, ctx.currentTime);
-        gain3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration * 0.5);
-        osc3.connect(gain3);
-        gain3.connect(ctx.destination);
-        osc3.start(ctx.currentTime);
-        osc3.stop(ctx.currentTime + duration * 0.5);
-      }
-    } catch { /* silent */ }
-  }
-
-  pop() { this.playTone(880, 0.1, "sine", 0.06); setTimeout(() => this.playTone(1100, 0.08, "sine", 0.04), 50); }
-  pet() { this.playTone(523, 0.15, "sine", 0.05); setTimeout(() => this.playTone(659, 0.12, "sine", 0.04), 80); setTimeout(() => this.playTone(784, 0.15, "sine", 0.03), 160); }
-  open() { this.playTone(440, 0.12, "sine", 0.05); setTimeout(() => this.playTone(554, 0.12, "sine", 0.04), 60); setTimeout(() => this.playTone(659, 0.15, "sine", 0.04), 120); }
-  close() { this.playTone(659, 0.1, "sine", 0.04); setTimeout(() => this.playTone(523, 0.15, "sine", 0.03), 80); }
-  send() { this.playTone(698, 0.08, "sine", 0.04); setTimeout(() => this.playTone(880, 0.1, "sine", 0.03), 60); }
-  receive() { this.playTone(392, 0.12, "triangle", 0.04); setTimeout(() => this.playTone(523, 0.15, "triangle", 0.03), 100); setTimeout(() => this.playTone(659, 0.12, "triangle", 0.03), 200); }
-  love() { for (let i = 0; i < 5; i++) setTimeout(() => this.playTone(523 + i * 50, 0.12, "sine", 0.03), i * 80); }
+  enabled = false;
+  pop() {}
+  pet() {}
+  open() {}
+  close() {}
+  send() {}
+  receive() {}
+  love() {}
 }
 
 const sounds = new MascotSounds();
@@ -1055,22 +1007,20 @@ interface NavLink {
 
 const NAV_PATTERNS: { pattern: RegExp; link: NavLink }[] = [
   { pattern: /подыш|дыхан|вдох|выдох|дышать|breath/i, link: { label: "Дыхание", path: "__breathing__", emoji: "🌬️", color: "#7EA8BE" } },
-  { pattern: /дневник|запис|journal|мысл[иь] записать/i, link: { label: "Дневник", path: "/journal", emoji: "📝", color: "#9B8EC4" } },
-  { pattern: /заземл|grounding|5.?4.?3.?2.?1/i, link: { label: "Заземление 5-4-3-2-1", path: "/anxiety/grounding", emoji: "🌍", color: "#7BAFB0" } },
-  { pattern: /тревог|тревож|anxiety|беспокой/i, link: { label: "Трекер тревоги", path: "/anxiety", emoji: "📊", color: "#C4876C" } },
-  { pattern: /настроен|mood|чувств/i, link: { label: "Настроение", path: "/mood", emoji: "😊", color: "#B88FA7" } },
-  { pattern: /SOS|экстренн|крити[чк]/i, link: { label: "SOS-карточка", path: "/sos", emoji: "🆘", color: "#E88A8A" } },
-  { pattern: /привыч|habit|рутин/i, link: { label: "Привычки", path: "/habits", emoji: "🔄", color: "#8DB596" } },
-  { pattern: /звук|soundscape|ambient|фон|шум/i, link: { label: "Звуки природы", path: "/soundscapes", emoji: "🎵", color: "#7EA8BE" } },
-  { pattern: /расслаб|мышеч|PMR|релаксац/i, link: { label: "Релаксация", path: "/pmr", emoji: "🧘", color: "#9B8EC4" } },
-  { pattern: /медитац|meditat|практик.*тиш|mindful|осознан/i, link: { label: "Медитации", path: "/meditation", emoji: "🧘", color: "#9B8EC4" } },
-  { pattern: /сон|sleep|спать|уснуть|бессонниц/i, link: { label: "Трекер сна", path: "/sleep", emoji: "🌙", color: "#7EA8BE" } },
-  { pattern: /worry|беспокойств|когнитив|CBT/i, link: { label: "Worry Journal", path: "/worry", emoji: "🧠", color: "#C4A86C" } },
-  { pattern: /bingo|self.?care|забот.*себ/i, link: { label: "Self-Care Bingo", path: "/bingo", emoji: "🎯", color: "#B88FA7" } },
-  { pattern: /колесо жизни|life.?wheel|баланс/i, link: { label: "Колесо жизни", path: "/lifewheel", emoji: "🎡", color: "#7BAFB0" } },
-  { pattern: /челлендж|challenge|30.?дн|мягкост/i, link: { label: "30-дневный челлендж", path: "/challenge", emoji: "🌸", color: "#C4876C" } },
-  { pattern: /капсул|capsul|письмо.?буду|будущ/i, link: { label: "Капсула времени", path: "/capsule", emoji: "💌", color: "#B88FA7" } },
-  { pattern: /skill.?tree|дерево.?навык|ветк|RPG|прокач/i, link: { label: "Дерево навыков", path: "/skills", emoji: "🌳", color: "#8DB596" } },
+  { pattern: /дневник|запис|journal|мысл[иь] записать/i, link: { label: "Дневник", path: "/app/journal", emoji: "📝", color: "#9B8EC4" } },
+  { pattern: /заземл|grounding|5.?4.?3.?2.?1/i, link: { label: "Заземление 5-4-3-2-1", path: "/app/app/anxiety/grounding", emoji: "🌍", color: "#7BAFB0" } },
+  { pattern: /тревог|тревож|anxiety|беспокой/i, link: { label: "Трекер тревоги", path: "/app/anxiety", emoji: "📊", color: "#C4876C" } },
+  { pattern: /настроен|mood|чувств/i, link: { label: "Настроение", path: "/app/mood", emoji: "😊", color: "#B88FA7" } },
+  { pattern: /SOS|экстренн|крити[чк]/i, link: { label: "SOS-карточка", path: "/app/sos", emoji: "🆘", color: "#E88A8A" } },
+  { pattern: /привыч|habit|рутин/i, link: { label: "Привычки", path: "/app/habits", emoji: "🔄", color: "#8DB596" } },
+  { pattern: /расслаб|мышеч|PMR|релаксац/i, link: { label: "Релаксация", path: "/app/pmr", emoji: "🧘", color: "#9B8EC4" } },
+  { pattern: /сон|sleep|спать|уснуть|бессонниц/i, link: { label: "Трекер сна", path: "/app/sleep", emoji: "🌙", color: "#7EA8BE" } },
+  { pattern: /worry|беспокойств|когнитив|CBT/i, link: { label: "Worry Journal", path: "/app/worry", emoji: "🧠", color: "#C4A86C" } },
+  { pattern: /bingo|self.?care|забот.*себ/i, link: { label: "Self-Care Bingo", path: "/app/bingo", emoji: "🎯", color: "#B88FA7" } },
+  { pattern: /колесо жизни|life.?wheel|баланс/i, link: { label: "Колесо жизни", path: "/app/lifewheel", emoji: "🎡", color: "#7BAFB0" } },
+  { pattern: /челлендж|challenge|30.?дн|мягкост/i, link: { label: "30-дневный челлендж", path: "/app/challenge", emoji: "🌸", color: "#C4876C" } },
+  { pattern: /капсул|capsul|письмо.?буду|будущ/i, link: { label: "Капсула времени", path: "/app/capsule", emoji: "💌", color: "#B88FA7" } },
+  { pattern: /skill.?tree|дерево.?навык|ветк|RPG|прокач/i, link: { label: "Дерево навыков", path: "/app/skills", emoji: "🌳", color: "#8DB596" } },
 ];
 
 function detectNavLinks(text: string): NavLink[] {

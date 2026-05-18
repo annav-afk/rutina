@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "motion/react";
 import { useApp } from "./app-context";
 import {
@@ -6,7 +6,6 @@ import {
   Sparkles, ChevronRight, ChevronLeft, Star, Target,
   Heart, Zap, Trophy, BookOpen, Bell, ArrowRight,
   CheckCircle2, Circle, Flame, Palette,
-  Volume2, VolumeX, Music,
 } from "lucide-react";
 
 /* ─── Colors ─── */
@@ -838,120 +837,9 @@ export function Onboarding() {
   const { setOnboardingDone } = useApp();
   const [step, setStep] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [musicPlaying, setMusicPlaying] = useState(false);
-  const [musicLoaded, setMusicLoaded] = useState(false);
-  const [musicError, setMusicError] = useState(false);
-  const autoplayAttempted = useRef(false);
-  const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Try to start music (used for autoplay and as fallback on first interaction)
-  const tryPlayMusic = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio || musicPlaying) return;
-    audio.volume = 0;
-    audio
-      .play()
-      .then(() => {
-        // Fade in over 1.5s
-        let vol = 0;
-        const fadeIn = setInterval(() => {
-          vol = Math.min(vol + 0.02, 0.35);
-          if (audio) audio.volume = vol;
-          if (vol >= 0.35) clearInterval(fadeIn);
-        }, 40);
-        setMusicPlaying(true);
-        setMusicError(false);
-      })
-      .catch((err) => {
-        console.warn("Audio autoplay blocked:", err);
-        // Will retry on first user interaction
-      });
-  }, [musicPlaying]);
-
-  // Autoplay on mount
-  useEffect(() => {
-    if (autoplayAttempted.current) return;
-    autoplayAttempted.current = true;
-    // Small delay to let DOM settle
-    const timer = setTimeout(() => tryPlayMusic(), 300);
-    return () => clearTimeout(timer);
-  }, [tryPlayMusic]);
-
-  // Fallback: start music on first user interaction if autoplay was blocked
-  useEffect(() => {
-    if (musicPlaying) return;
-    const startOnInteraction = () => {
-      tryPlayMusic();
-      cleanup();
-    };
-    const cleanup = () => {
-      document.removeEventListener("click", startOnInteraction);
-      document.removeEventListener("touchstart", startOnInteraction);
-      document.removeEventListener("keydown", startOnInteraction);
-    };
-    document.addEventListener("click", startOnInteraction, { once: true });
-    document.addEventListener("touchstart", startOnInteraction, { once: true });
-    document.addEventListener("keydown", startOnInteraction, { once: true });
-    return cleanup;
-  }, [musicPlaying, tryPlayMusic]);
-
-  // Toggle music (mute/unmute button)
-  const toggleMusic = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (musicPlaying) {
-      audio.pause();
-      setMusicPlaying(false);
-    } else {
-      if (musicError) {
-        setMusicError(false);
-        audio.load();
-      }
-      audio.volume = 0.35;
-      audio
-        .play()
-        .then(() => setMusicPlaying(true))
-        .catch((err) => {
-          console.warn("Audio play failed:", err);
-          setMusicError(true);
-        });
-    }
-  };
-
-  // Fade out and stop music when onboarding ends
   const finishOnboarding = () => {
-    const audio = audioRef.current;
-    if (audio && musicPlaying) {
-      // Fade out over 1s then stop
-      let vol = audio.volume;
-      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-      fadeIntervalRef.current = setInterval(() => {
-        vol = Math.max(vol - 0.025, 0);
-        audio.volume = vol;
-        if (vol <= 0) {
-          if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-          audio.pause();
-          audio.currentTime = 0;
-        }
-      }, 30);
-    } else if (audio) {
-      audio.pause();
-      audio.currentTime = 0;
-    }
     setOnboardingDone();
   };
-
-  // Cleanup fade interval on unmount
-  useEffect(() => {
-    return () => {
-      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    };
-  }, []);
 
   const handleNext = () => {
     if (step < slides.length - 1) {
@@ -974,62 +862,7 @@ export function Onboarding() {
       style={{ backgroundColor: C.bg }}
       ref={containerRef}
     >
-      {/* DOM-attached audio element for sandbox compatibility */}
-      <audio
-        ref={audioRef}
-        src="https://bjhsgjsxhvwtuerahuha.supabase.co/storage/v1/object/public/track/Hello,%20March.mp3"
-        loop
-        preload="auto"
-        onCanPlayThrough={() => { setMusicLoaded(true); setMusicError(false); }}
-        onError={(e) => { console.warn("Audio load error:", e); setMusicError(true); }}
-        style={{ display: "none" }}
-      />
       <div className="w-full max-w-[430px] px-5 py-6 flex flex-col min-h-screen relative">
-        {/* Music toggle button */}
-        <motion.button
-          onClick={toggleMusic}
-          className="absolute top-6 right-5 z-10 flex items-center gap-1.5 rounded-full px-3 py-2"
-          style={{
-            backgroundColor: musicPlaying ? C.sage + "18" : C.card,
-            border: `1px solid ${musicPlaying ? C.sage + "35" : C.border}`,
-          }}
-          whileTap={{ scale: 0.92 }}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          title="Hello, March — Oneul"
-        >
-          {musicPlaying ? (
-            <>
-              <Volume2 className="w-3.5 h-3.5" style={{ color: C.sage }} />
-              {/* Animated music bars */}
-              <div className="flex items-end gap-[2px] h-3">
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="w-[2px] rounded-full"
-                    style={{ backgroundColor: C.sage }}
-                    animate={{ height: ["4px", "12px", "6px", "10px", "4px"] }}
-                    transition={{
-                      duration: 1.2,
-                      repeat: Infinity,
-                      delay: i * 0.15,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <Music className="w-3.5 h-3.5" style={{ color: C.textFaint }} />
-              <span style={{ fontSize: "0.6rem", color: C.textFaint, fontWeight: 500 }}>
-                ♪
-              </span>
-            </>
-          )}
-        </motion.button>
-
         {/* Progress bar */}
         <div className="flex items-center gap-3 mb-4">
           {step > 0 && (

@@ -120,7 +120,7 @@ export function GroundingPage() {
   const progress = (filledCount / totalItems) * 100;
 
   return (
-    <div className="px-5 pt-14 pb-6">
+    <div className="px-5 pt-14 pb-8">
       {/* Header */}
       <motion.div
         className="flex items-center gap-3 mb-6"

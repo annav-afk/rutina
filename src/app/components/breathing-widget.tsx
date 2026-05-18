@@ -53,7 +53,6 @@ export function BreathingWidget() {
   const [cycles, setCycles] = useState(0);
   const [showPicker, setShowPicker] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Allow external components to open this widget
   useEffect(() => {
@@ -64,33 +63,12 @@ export function BreathingWidget() {
 
   const currentPhase = selectedPattern.phases[phaseIndex];
 
-  const playTone = useCallback((freq: number, duration: number) => {
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext();
-      }
-      const ctx = audioCtxRef.current;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + duration);
-    } catch {}
-  }, []);
-
   useEffect(() => {
     if (!isRunning) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
     setTimer(currentPhase.duration);
-    playTone(currentPhase.label === "Вдох" ? 528 : currentPhase.label === "Выдох" ? 396 : 432, 0.3);
 
     intervalRef.current = setInterval(() => {
       setTimer((prev) => {

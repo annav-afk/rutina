@@ -9,7 +9,7 @@ import { AppIcon } from "../app-icon";
 
 const quickTools = [
   { id: "breathing", label: "Дыхание", icon: "🌬️", color: "#7EA8BE", desc: "4-7-8 дыхание", route: null },
-  { id: "grounding", label: "Заземление", icon: "🖐️", color: "#8DB596", desc: "5-4-3-2-1", route: "/anxiety/grounding" },
+  { id: "grounding", label: "Заземление", icon: "🖐️", color: "#8DB596", desc: "5-4-3-2-1", route: "/app/anxiety/grounding" },
   { id: "affirmation", label: "Аффирмация", icon: "💜", color: "#9B8EC4", desc: "Тёплые слова", route: null },
   { id: "drink", label: "Тёплый напиток", icon: "☕", color: "#C4876C", desc: "Согреть руки", route: null },
   { id: "music", label: "Тишина", icon: "🎵", color: "#C4A86C", desc: "2 мин в тишине", route: null },

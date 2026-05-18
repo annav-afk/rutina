@@ -95,7 +95,7 @@ export function LifeWheelPage() {
   );
 
   return (
-    <div className="px-5 pt-14 pb-4">
+    <div className="px-5 pt-14 pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => navigate(-1)} className="p-1.5 rounded-xl" style={{ backgroundColor: t.bgSecondary }}>
