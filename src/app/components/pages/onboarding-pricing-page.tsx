@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { useState, useEffect, useCallback } from "react";
+import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { useTheme } from "../theme";
 import { GlassPanel, AmbientBlobs, SparkleField, MeshGradientBg } from "../ambient-elements";
 import { AppIcon } from "../app-icon";
-import { CheckCircle2, ChevronRight, Sparkles, CheckIcon, Circle, Target, TrendingUp, Calendar, Bell, BarChart3, Focus, Heart, Zap } from "lucide-react";
+import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { supabase } from "../supabase-client";
-import { projectId, publicAnonKey } from "../../../../utils/supabase/info";
+
+const PAYMENT_ENDPOINT = "https://bjhsgjsxhvwtuerahuha.supabase.co/functions/v1/create-payment-rutina";
 
 const features = [
   {
@@ -86,105 +87,67 @@ export function OnboardingPricingPage() {
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  const handleRutinaPayment = useCallback(async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      navigate("/auth?next=pay");
+      return;
+    }
+
+    const userId = sessionData.session.user.id;
+    const email = sessionData.session.user.email ?? "";
+
+    setLoading(true);
+    try {
+      const response = await fetch(PAYMENT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          email,
+          plan: "monthly",
+          returnUrl: `${window.location.origin}/success`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success || !data.confirmationUrl) {
+        console.error("Payment creation failed:", data);
+        alert("Ошибка создания платежа: " + (data.error || "неизвестная ошибка"));
+        return;
+      }
+
+      window.location.href = data.confirmationUrl;
+    } catch (err: any) {
+      console.error("Payment request error:", err);
+      alert("Ошибка создания платежа: " + (err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  const handleStartFree = useCallback(async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      navigate("/auth?next=app");
+      return;
+    }
+    navigate("/app");
+  }, [navigate]);
 
   useEffect(() => {
     const isDark = localStorage.getItem("routine_dark_mode") === "true";
     setDarkMode(isDark);
 
-    // Check if returning from payment (only if paymentId is present)
+    // Auto-trigger payment if returning from auth with pay intent
     const urlParams = new URLSearchParams(window.location.search);
-    const paymentId = urlParams.get("paymentId");
-    if (paymentId) {
-      checkPaymentStatus(paymentId).catch(() => {
-        // Silently handle payment check errors
-      });
+    if (urlParams.get("action") === "pay") {
+      window.history.replaceState({}, "", window.location.pathname);
+      handleRutinaPayment();
     }
-  }, []);
-
-  const checkPaymentStatus = async (paymentId: string) => {
-    try {
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !data.session) {
-        // No session — just skip payment check
-        return;
-      }
-
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-ff738703/payment/status/${paymentId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${data.session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to check payment status");
-      }
-
-      const paymentData = await response.json();
-      if (paymentData.status === "succeeded" && paymentData.paid) {
-        // Payment successful — redirect to app
-        navigate("/app");
-      } else {
-        setError("Оплата не завершена. Попробуйте еще раз.");
-      }
-    } catch (err) {
-      console.error("Error checking payment:", err);
-      // Don't show error to user, just log it
-    }
-  };
-
-  const handleStartFree = () => {
-    navigate("/app");
-  };
-
-  const handleSubscribe = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Check if user is logged in
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !data.session) {
-        setError("Необходимо войти в систему для оформления подписки");
-        setLoading(false);
-        return;
-      }
-
-      // Create payment
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-ff738703/payment/create`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${data.session.access_token}`,
-          },
-          body: JSON.stringify({
-            amount: 500,
-            description: "Rutina Life — Подписка на 1 месяц",
-            returnUrl: `${window.location.origin}/`,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to create payment");
-      }
-
-      const paymentData = await response.json();
-
-      // Redirect to YooKassa payment page
-      window.location.href = paymentData.confirmationUrl;
-    } catch (err) {
-      console.error("Payment error:", err);
-      setError("Ошибка при создании платежа. Попробуйте еще раз.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [handleRutinaPayment]);
 
   return (
     <div style={{
@@ -222,20 +185,6 @@ export function OnboardingPricingPage() {
         minHeight: '100%',
       }}>
 
-        {/* Error message */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6"
-          >
-            <GlassPanel darkMode={darkMode} className="p-4 rounded-xl" color="#C4876C">
-              <p style={{ color: "#C4876C", fontSize: "0.9rem", textAlign: "center" }}>
-                {error}
-              </p>
-            </GlassPanel>
-          </motion.div>
-        )}
 
         {/* 1. HERO */}
         <motion.div
@@ -533,17 +482,27 @@ export function OnboardingPricingPage() {
                 </div>
 
                 <motion.button
-                  className="w-full py-3.5 rounded-xl font-semibold shadow-lg"
+                  className="w-full py-3.5 rounded-xl font-semibold shadow-lg flex items-center justify-center gap-2"
                   style={{
-                    background: "linear-gradient(135deg, #8DB596, #7EA8BE)",
+                    background: loading
+                      ? "linear-gradient(135deg, #8DB59688, #7EA8BE88)"
+                      : "linear-gradient(135deg, #8DB596, #7EA8BE)",
                     color: "white",
+                    cursor: loading ? "not-allowed" : "pointer",
                   }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSubscribe}
+                  whileHover={loading ? {} : { scale: 1.02 }}
+                  whileTap={loading ? {} : { scale: 0.98 }}
+                  onClick={handleRutinaPayment}
                   disabled={loading}
                 >
-                  {loading ? "Загрузка..." : "Оформить доступ"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Создаём платёж...</span>
+                    </>
+                  ) : (
+                    "Оформить доступ — 500 ₽/мес"
+                  )}
                 </motion.button>
               </GlassPanel>
             </motion.div>

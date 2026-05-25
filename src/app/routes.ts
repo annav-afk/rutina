@@ -170,6 +170,22 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // Auth page (login / signup)
+      {
+        path: "auth",
+        lazy: async () => {
+          const { AuthRoutePage } = await import("./components/pages/auth-route-page");
+          return { Component: AuthRoutePage };
+        },
+      },
+      // Payment success page
+      {
+        path: "success",
+        lazy: async () => {
+          const { SuccessPage } = await import("./components/pages/success-page");
+          return { Component: SuccessPage };
+        },
+      },
       // 404 — outside MobileLayout so it shows full-screen
       {
         path: "*",

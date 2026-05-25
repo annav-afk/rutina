@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Eye, EyeOff, Loader2, Sparkles, ArrowRight, User, Lock, Shield, Mail } from "lucide-react";
-import { supabase, projectId, publicAnonKey } from "../supabase-client";
+import { supabase } from "../supabase-client";
 import { AmbientBlobs, SparkleField, GradientOrb, MeshGradientBg } from "../ambient-elements";
-
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-ff738703`;
 
 const C = {
   bg: "#FAF8F5",
@@ -106,17 +104,30 @@ export function AuthPage({ onAuth }: AuthPageProps) {
 
     try {
       if (mode === "signup") {
-        const res = await fetch(`${API_BASE}/signup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${publicAnonKey}` },
-          body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { data: { name: name.trim() } },
         });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || "Ошибка регистрации");
+        if (signUpErr) {
+          setError(
+            signUpErr.message.includes("already registered") || signUpErr.message.includes("already been registered")
+              ? "Этот email уже зарегистрирован"
+              : signUpErr.message || "Ошибка регистрации"
+          );
           setLoading(false);
           return;
         }
+        // If session returned immediately (email confirm disabled), use it
+        if (signUpData.session) {
+          await onAuth({
+            id: signUpData.session.user.id,
+            name: name.trim(),
+            accessToken: signUpData.session.access_token,
+          });
+          return;
+        }
+        // Otherwise sign in explicitly
         const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,

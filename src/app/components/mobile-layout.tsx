@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router";
-import { Home, ListChecks, Repeat, Smile, User } from "lucide-react";
-import { motion } from "motion/react";
+import { Home, ListChecks, Repeat, Smile, User, Lock, CheckCircle2, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { supabase, projectId } from "./supabase-client";
 import { useApp } from "./app-context";
 import { PomodoroTimer } from "./pomodoro-timer";
 import { CelebrationOverlay } from "./confetti";
@@ -13,6 +14,8 @@ import { BreathingWidget } from "./breathing-widget";
 import { LeafMascot } from "./leaf-mascot";
 import { FloatingDock } from "./floating-dock";
 import { AmbientBlobs, SparkleField, MeshGradientBg } from "./ambient-elements";
+
+const PAYMENT_ENDPOINT = "https://bjhsgjsxhvwtuerahuha.supabase.co/functions/v1/create-payment-rutina";
 
 const tabs = [
   { path: "/app", icon: Home, label: "Главная" },
@@ -199,6 +202,131 @@ export function MobileLayout() {
     return () => document.removeEventListener("pomodoro-state", handler);
   }, []);
 
+  // ─── Auth + subscription gate ───
+  const [authReady, setAuthReady] = useState(false);
+  const [isPremium, setIsPremium] = useState<boolean | null>(null);
+  const [showUpgradeSheet, setShowUpgradeSheet] = useState(false);
+  const [blockedFeature, setBlockedFeature] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (cancelled) return;
+
+      if (!data.session) {
+        navigate("/auth?next=app", { replace: true });
+        return;
+      }
+
+      // Admin always gets full access
+      if (data.session.user.id === "admin") {
+        setIsPremium(true);
+        setAuthReady(true);
+        return;
+      }
+
+      setAuthReady(true);
+
+      // Check subscription status
+      try {
+        const res = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-ff738703/subscription/${data.session.user.id}`,
+          { headers: { Authorization: `Bearer ${data.session.access_token}` } }
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          const sub = await res.json();
+          setIsPremium(sub.status === "active");
+        } else {
+          setIsPremium(false);
+        }
+      } catch {
+        if (!cancelled) setIsPremium(false);
+      }
+    }).catch(() => {
+      if (!cancelled) navigate("/auth?next=app", { replace: true });
+    });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleTabClick = useCallback((path: string, label: string) => {
+    if (isPremium === false && path !== "/app") {
+      setBlockedFeature(label);
+      setShowUpgradeSheet(true);
+      return;
+    }
+    navigate(path);
+  }, [isPremium, navigate]);
+
+  const handlePayFromApp = useCallback(async () => {
+    setPaymentLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        window.location.href = "/?action=pay";
+        return;
+      }
+      const response = await fetch(PAYMENT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: sessionData.session.user.id,
+          email: sessionData.session.user.email ?? "",
+          plan: "monthly",
+          returnUrl: `${window.location.origin}/success`,
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.confirmationUrl) {
+        window.location.href = data.confirmationUrl;
+      } else {
+        console.error("Payment failed:", data);
+        alert("Ошибка создания платежа: " + (data.error || "неизвестная ошибка"));
+      }
+    } catch (err: any) {
+      console.error("Payment error:", err);
+      alert("Ошибка создания платежа: " + (err?.message || err));
+    } finally {
+      setPaymentLoading(false);
+    }
+  }, []);
+
+  // Auth loading screen
+  if (!authReady) {
+    return (
+      <div
+        className="h-dvh flex items-center justify-center relative overflow-hidden"
+        style={{ background: darkMode ? "#1A1918" : "#FAF8F5" }}
+      >
+        <MeshGradientBg darkMode={darkMode} variant="calm" />
+        <AmbientBlobs darkMode={darkMode} variant="calm" />
+        <div className="relative z-[1] text-center">
+          <motion.div
+            className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
+            style={{
+              background: "linear-gradient(135deg, rgba(141,181,150,0.15), rgba(155,142,196,0.12))",
+              boxShadow: "0 8px 32px rgba(141,181,150,0.1)",
+            }}
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <span style={{ fontSize: "2.2rem" }}>🌿</span>
+          </motion.div>
+          <motion.p
+            style={{ fontSize: "0.82rem", color: "#9B9489", fontWeight: 500 }}
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            Загрузка...
+          </motion.p>
+        </div>
+      </div>
+    );
+  }
+
   if (!onboardingDone) {
     return <Onboarding />;
   }
@@ -253,6 +381,49 @@ export function MobileLayout() {
             <SparkleField count={meshVariant === "night" ? 15 : 10} darkMode={darkMode} />
           </div>
 
+          {/* Free mode banner */}
+          {isPremium === false && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative z-[2] flex items-center justify-between px-4 py-2.5 flex-shrink-0"
+              style={{
+                background: darkMode
+                  ? "rgba(141,181,150,0.08)"
+                  : "linear-gradient(90deg, rgba(141,181,150,0.12), rgba(123,175,176,0.08))",
+                borderBottom: `1px solid rgba(141,181,150,0.2)`,
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span style={{ fontSize: "0.8rem" }}>🌿</span>
+                <span style={{ fontSize: "0.72rem", color: "#8DB596", fontWeight: 600 }}>
+                  Бесплатный режим
+                </span>
+                <span style={{ fontSize: "0.65rem", color: "#9B9489" }}>· Просмотр</span>
+              </div>
+              <motion.button
+                onClick={handlePayFromApp}
+                disabled={paymentLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                style={{
+                  background: "linear-gradient(135deg, #8DB596, #7EA8BE)",
+                  color: "white",
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  opacity: paymentLoading ? 0.7 : 1,
+                }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {paymentLoading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  "Оформить — 500 ₽/мес"
+                )}
+              </motion.button>
+            </motion.div>
+          )}
+
           <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-28 relative z-[1]">
             <Outlet />
           </div>
@@ -285,7 +456,7 @@ export function MobileLayout() {
                 return (
                   <button
                     key={tab.path}
-                    onClick={() => navigate(tab.path)}
+                    onClick={() => handleTabClick(tab.path, tab.label)}
                     className="flex flex-col items-center gap-0.5 px-3 py-1 relative"
                   >
                     {isActive && (
@@ -324,6 +495,107 @@ export function MobileLayout() {
             pomodoroTime={pomodoroState.time}
             pomodoroColor={pomodoroState.color}
           />
+
+          {/* Upgrade sheet — shown when free user taps a premium tab */}
+          <AnimatePresence>
+            {showUpgradeSheet && (
+              <motion.div
+                className="absolute inset-0 z-[60] flex flex-col justify-end"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.45)",
+                  backdropFilter: "blur(6px)",
+                  WebkitBackdropFilter: "blur(6px)",
+                }}
+                onClick={() => setShowUpgradeSheet(false)}
+              >
+                <motion.div
+                  className="rounded-t-3xl px-6 pt-6 pb-8"
+                  style={{
+                    backgroundColor: darkMode ? "#1E1D1C" : "#FAF8F5",
+                    borderTop: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(141,181,150,0.2)"}`,
+                  }}
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "100%" }}
+                  transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Handle */}
+                  <div className="flex justify-center mb-5">
+                    <div
+                      className="w-10 h-1 rounded-full"
+                      style={{ backgroundColor: darkMode ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }}
+                    />
+                  </div>
+
+                  <div className="text-center mb-5">
+                    <div
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+                      style={{
+                        background: "linear-gradient(135deg, rgba(141,181,150,0.18), rgba(123,175,176,0.12))",
+                      }}
+                    >
+                      <Lock className="w-7 h-7" style={{ color: "#8DB596" }} />
+                    </div>
+                    <h3
+                      className="font-bold mb-2"
+                      style={{ fontSize: "1.1rem", color: t.text }}
+                    >
+                      {blockedFeature} — Premium
+                    </h3>
+                    <p style={{ fontSize: "0.85rem", color: t.textMuted, lineHeight: 1.55 }}>
+                      Оформите подписку, чтобы получить полный доступ ко всем функциям приложения
+                    </p>
+                  </div>
+
+                  <div className="space-y-2.5 mb-6">
+                    {[
+                      "Безлимит привычек, задач и рутин",
+                      "Трекер настроения, сна и тревоги",
+                      "ИИ-компаньон Листик",
+                      "Дневник и инструменты роста",
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: "#8DB596" }} />
+                        <span style={{ fontSize: "0.87rem", color: t.text }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <motion.button
+                    onClick={handlePayFromApp}
+                    disabled={paymentLoading}
+                    className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg"
+                    style={{
+                      background: "linear-gradient(135deg, #8DB596, #7EA8BE)",
+                      color: "white",
+                      fontWeight: 600,
+                      fontSize: "0.95rem",
+                      opacity: paymentLoading ? 0.7 : 1,
+                    }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {paymentLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      "Оформить подписку — 500 ₽/мес"
+                    )}
+                  </motion.button>
+
+                  <button
+                    onClick={() => setShowUpgradeSheet(false)}
+                    className="w-full mt-3 py-2.5 text-center"
+                    style={{ fontSize: "0.85rem", color: t.textMuted }}
+                  >
+                    Закрыть
+                  </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
